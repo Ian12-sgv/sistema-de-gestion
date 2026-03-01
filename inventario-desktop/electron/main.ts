@@ -174,8 +174,50 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function getRendererIndexHtmlPath(): string {
+  // dist-electron: .../resources/app.asar/dist-electron
+  // dist:         .../resources/app.asar/dist
+  return path.resolve(__dirname, '..', 'dist', 'index.html')
+}
+
+async function loadRenderer(win: electron.BrowserWindow) {
+  const devUrl = process.env.VITE_DEV_SERVER_URL
+  if (devUrl) {
+    await win.loadURL(devUrl)
+    return
+  }
+
+  const indexHtml = getRendererIndexHtmlPath()
+  console.log('[renderer] index.html esperado:', indexHtml)
+
+  if (!fs.existsSync(indexHtml)) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Interfaz no encontrada',
+      message:
+        'No se encontró el frontend compilado dentro de la aplicación.\n\n' +
+        `Se esperaba:\n${indexHtml}\n\n` +
+        'Esto indica que el build no incluyó la carpeta dist/.'
+    })
+    return
+  }
+
+  win.webContents.on('did-fail-load', async (_e, code, desc, url) => {
+    console.error('[renderer] did-fail-load', { code, desc, url, indexHtml })
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Error cargando interfaz',
+      message:
+        `No se pudo cargar la interfaz.\n\nCódigo: ${code}\nDetalle: ${desc}\nURL: ${url}\n\n` +
+        `index.html esperado:\n${indexHtml}`
+    })
+  })
+
+  await win.loadFile(indexHtml)
+}
+
 function createWindow() {
-  const win = new BrowserWindow({
+  const win = new electron.BrowserWindow({
     width: 1100,
     height: 720,
     webPreferences: {
@@ -187,12 +229,8 @@ function createWindow() {
 
   mainWindow = win
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL
-  if (devUrl) {
-    win.loadURL(devUrl)
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'))
-  }
+  // Carga robusta (si falla, muestra dialog)
+  loadRenderer(win)
 
   // ✅ Debug: si setean FORCE_DEVTOOLS=1, abrimos DevTools automáticamente
   if (process.env.FORCE_DEVTOOLS === '1') {
