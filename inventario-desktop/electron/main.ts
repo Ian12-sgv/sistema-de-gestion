@@ -13,6 +13,8 @@ app.setName('Sistema de Gestion')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+let mainWindow: electron.BrowserWindow | null = null
+
 function looksLikeCjsButMjs(filePath: string): boolean {
   try {
     const txt = fs.readFileSync(filePath, 'utf8')
@@ -50,6 +52,15 @@ function resolvePreloadPath() {
   }
 
   return mjs
+}
+
+function openDevTools() {
+  if (!mainWindow) return
+  try {
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+  } catch {
+    // ignore
+  }
 }
 
 function buildMenu() {
@@ -140,6 +151,11 @@ function buildMenu() {
       label: 'Ayuda',
       submenu: [
         {
+          label: 'Herramientas de desarrollador',
+          accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Control+Shift+I',
+          click: () => openDevTools()
+        },
+        {
           label: 'Mostrar ruta de backend.env',
           click: async () => {
             await dialog.showMessageBox({
@@ -169,11 +185,20 @@ function createWindow() {
     },
   })
 
+  mainWindow = win
+
   const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) {
     win.loadURL(devUrl)
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
+  }
+
+  // ✅ Debug: si setean FORCE_DEVTOOLS=1, abrimos DevTools automáticamente
+  if (process.env.FORCE_DEVTOOLS === '1') {
+    win.webContents.once('did-finish-load', () => {
+      openDevTools()
+    })
   }
 }
 
