@@ -65,11 +65,22 @@ function copyDir(srcDir, dstDir) {
 
 function run(cmd, args, opts = {}) {
   log(`RUN: ${cmd} ${args.join(' ')}`)
+
+  // ✅ En Windows, para ejecutar .cmd/.bat correctamente, usar shell:true
+  const isWin = process.platform === 'win32'
+  const isCmdFile = isWin && (cmd.toLowerCase().endsWith('.cmd') || cmd.toLowerCase().endsWith('.bat'))
+
   const res = spawnSync(cmd, args, {
     stdio: 'inherit',
-    shell: false,
+    shell: isCmdFile, // <- clave
     ...opts
   })
+
+  // ✅ Si no se pudo "spawn" (exit null), Node pone res.error
+  if (res.error) {
+    fail(`Falló al ejecutar: ${cmd} ${args.join(' ')}\n${res.error.message}`)
+  }
+
   if (res.status !== 0) {
     fail(`Falló: ${cmd} ${args.join(' ')} (exit=${res.status})`)
   }
@@ -90,7 +101,6 @@ function ensureBackendSource() {
 }
 
 function detectBuildOutputDirCandidates() {
-  // Nest suele usar nest-cli.json / nest.json compilerOptions.outputPath
   const nestCli =
     readJsonSafe(path.join(backendSrc, 'nest-cli.json')) ||
     readJsonSafe(path.join(backendSrc, 'nest.json'))
@@ -102,9 +112,8 @@ function detectBuildOutputDirCandidates() {
   const candidates = []
   if (typeof nestOut === 'string' && nestOut.trim()) candidates.push(nestOut.trim())
   if (typeof tsOut === 'string' && tsOut.trim()) candidates.push(tsOut.trim())
-  candidates.push('dist') // fallback esperado
+  candidates.push('dist')
 
-  // únicos, en orden
   return [...new Set(candidates)]
 }
 
@@ -138,7 +147,6 @@ function pickMainJs(distDir) {
   const all = findAllFilesNamed(distDir, 'main.js', 12)
   if (all.length === 0) return null
 
-  // Heurística: si hay muchos, prioriza uno que termine en "/src/main.js"
   const srcCandidate = all.find((p) => p.replaceAll('\\', '/').endsWith('/src/main.js'))
   return srcCandidate ?? all[0]
 }
@@ -146,7 +154,6 @@ function pickMainJs(distDir) {
 function buildBackendSource() {
   log(`Backend fuente: ${backendSrc}`)
 
-  // deps backend fuente (solo si no existen)
   const nm = path.join(backendSrc, 'node_modules')
   if (!exists(nm)) {
     const lock = path.join(backendSrc, 'package-lock.json')
@@ -157,7 +164,7 @@ function buildBackendSource() {
   // build
   run(npmCmd, ['run', 'build'], { cwd: backendSrc })
 
-  // detectar outputPath real
+  // detectar output real
   const outCandidates = detectBuildOutputDirCandidates()
   let distDir = null
   for (const rel of outCandidates) {
@@ -217,18 +224,10 @@ function installProdDepsAndGenerate() {
 
 function writeShimIfNeeded(mainRel) {
   const normalized = mainRel.replaceAll('\\', '/')
-  if (normalized === 'main.js') return // ya está en raíz
-
-  if (normalized.startsWith('..')) {
-    fail(`Ruta inválida del main.js detectado: ${mainRel}`)
-  }
+  if (normalized === 'main.js') return
 
   const shimPath = path.join(backendDst, 'dist', 'main.js')
-  const shim = [
-    '/* Auto-generado por scripts/sync-backend.mjs */',
-    `require('./${normalized}');`,
-    ''
-  ].join('\n')
+  const shim = ['/* Auto-generado por scripts/sync-backend.mjs */', `require('./${normalized}');`, ''].join('\n')
 
   fs.writeFileSync(shimPath, shim, 'utf8')
   log(`Shim creado: backend/dist/main.js -> ./${normalized}`)
