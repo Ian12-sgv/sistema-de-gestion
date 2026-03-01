@@ -6,9 +6,28 @@ import { fileURLToPath } from 'node:url'
 import { getToken, setToken, clearToken } from './secure-store'
 import { startBackend, stopBackend, getBackendBaseUrl } from './backend-runner'
 
-const { app, BrowserWindow, ipcMain, Menu, shell, dialog } = electron
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog, protocol } = electron
 
+// ✅ Nombre estable para que la carpeta de configuración sea clara para el usuario
 app.setName('Sistema de Gestion')
+
+/**
+ * ✅ FIX DEFINITIVO (Windows): usar protocolo app:// en vez de file://
+ * - Evita rutas tipo file:///C:/... que rompen routing o dejan pantalla en blanco sin error.
+ * - Sirve dist/ desde app.asar/dist/ con rutas limpias.
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+])
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -80,10 +99,10 @@ function buildMenu() {
               await dialog.showMessageBox({
                 type: 'error',
                 title: 'Error',
-                message: String(e?.message ?? e)
+                message: String(e?.message ?? e),
               })
             }
-          }
+          },
         },
         {
           label: 'Abrir backend.env',
@@ -97,17 +116,17 @@ function buildMenu() {
                   title: 'No se pudo abrir backend.env',
                   message:
                     'Si es la primera vez, abre la app y espera 3 segundos para que se cree el archivo.\n\n' +
-                    `Ruta:\n${envPath}\n\nDetalle:\n${res}`
+                    `Ruta:\n${envPath}\n\nDetalle:\n${res}`,
                 })
               }
             } catch (e: any) {
               await dialog.showMessageBox({
                 type: 'error',
                 title: 'Error',
-                message: String(e?.message ?? e)
+                message: String(e?.message ?? e),
               })
             }
-          }
+          },
         },
         {
           label: 'Importar backend.env…',
@@ -118,8 +137,8 @@ function buildMenu() {
                 properties: ['openFile'],
                 filters: [
                   { name: 'Archivo de configuración', extensions: ['env', 'txt'] },
-                  { name: 'Todos', extensions: ['*'] }
-                ]
+                  { name: 'Todos', extensions: ['*'] },
+                ],
               })
 
               if (picked.canceled || picked.filePaths.length === 0) return
@@ -133,18 +152,18 @@ function buildMenu() {
                 title: 'Listo',
                 message:
                   'Se importó backend.env correctamente.\n\n' +
-                  'Cierra y vuelve a abrir la aplicación para que el backend tome la nueva configuración.'
+                  'Cierra y vuelve a abrir la aplicación para que el backend tome la nueva configuración.',
               })
             } catch (e: any) {
               await dialog.showMessageBox({
                 type: 'error',
                 title: 'Error al importar',
-                message: String(e?.message ?? e)
+                message: String(e?.message ?? e),
               })
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     {
       label: 'Ayuda',
@@ -152,30 +171,44 @@ function buildMenu() {
         {
           label: 'Herramientas de desarrollador',
           accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Control+Shift+I',
-          click: () => openDevTools()
+          click: () => openDevTools(),
         },
-        {
-          label: 'Mostrar ruta de backend.env',
-          click: async () => {
-            await dialog.showMessageBox({
-              type: 'info',
-              title: 'Ruta de configuración',
-              message:
-                'El archivo real usado por la aplicación está en:\n\n' +
-                `${envPath}`
-            })
-          }
-        }
-      ]
-    }
+      ],
+    },
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-function getRendererIndexHtmlPath(): string {
-  // ✅ FIX: en empaquetado usar app.getAppPath() (apunta a app.asar)
-  return path.join(app.getAppPath(), 'dist', 'index.html')
+function registerAppProtocol() {
+  // ✅ app.getAppPath() == ...\resources\app.asar (en PROD)
+  const distRoot = path.join(app.getAppPath(), 'dist')
+
+  protocol.registerFileProtocol('app', (request, callback) => {
+    try {
+      const u = new URL(request.url)
+      let rel = decodeURIComponent(u.pathname || '/')
+      if (rel.startsWith('/')) rel = rel.slice(1)
+
+      // SPA fallback: si piden una ruta sin archivo real, devolvemos index.html
+      let target = rel || 'index.html'
+      const abs = path.join(distRoot, target)
+
+      if (!fs.existsSync(abs)) {
+        // Si no existe y no parece asset (no tiene extensión), devolvemos index.html
+        const hasExt = path.extname(target) !== ''
+        const fallback = path.join(distRoot, 'index.html')
+        if (!hasExt && fs.existsSync(fallback)) {
+          callback({ path: fallback })
+          return
+        }
+      }
+
+      callback({ path: abs })
+    } catch (e: any) {
+      callback({ error: -2 }) // FILE_NOT_FOUND
+    }
+  })
 }
 
 async function loadRenderer(win: electron.BrowserWindow) {
@@ -185,37 +218,22 @@ async function loadRenderer(win: electron.BrowserWindow) {
     return
   }
 
-  const indexHtml = getRendererIndexHtmlPath()
-  console.log('[renderer] index.html esperado:', indexHtml)
-
+  const indexHtml = path.join(app.getAppPath(), 'dist', 'index.html')
   if (!fs.existsSync(indexHtml)) {
     await dialog.showMessageBox({
       type: 'error',
       title: 'Interfaz no encontrada',
-      message:
-        'No se encontró el frontend compilado dentro de la aplicación.\n\n' +
-        `Se esperaba:\n${indexHtml}\n\n` +
-        'Esto indica que el build no incluyó la carpeta dist/.'
+      message: `No existe:\n${indexHtml}\n\nEl build no incluyó dist/** dentro del app.asar.`,
     })
     return
   }
 
-  win.webContents.on('did-fail-load', async (_e, code, desc, url) => {
-    console.error('[renderer] did-fail-load', { code, desc, url, indexHtml })
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'Error cargando interfaz',
-      message:
-        `No se pudo cargar la interfaz.\n\nCódigo: ${code}\nDetalle: ${desc}\nURL: ${url}\n\n` +
-        `index.html esperado:\n${indexHtml}`
-    })
-  })
-
-  await win.loadFile(indexHtml)
+  // ✅ Cargamos con app:// para evitar file:///C:/...
+  await win.loadURL('app://./')
 }
 
 function createWindow() {
-  const win = new electron.BrowserWindow({
+  const win = new BrowserWindow({
     width: 1100,
     height: 720,
     webPreferences: {
@@ -226,12 +244,19 @@ function createWindow() {
   })
 
   mainWindow = win
+
+  win.webContents.on('did-fail-load', async (_e, code, desc, url) => {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Error cargando interfaz',
+      message: `Código: ${code}\nDetalle: ${desc}\nURL: ${url}`,
+    })
+  })
+
   loadRenderer(win)
 
   if (process.env.FORCE_DEVTOOLS === '1') {
-    win.webContents.once('did-finish-load', () => {
-      openDevTools()
-    })
+    win.webContents.once('did-finish-load', () => openDevTools())
   }
 }
 
@@ -241,6 +266,9 @@ app.whenReady().then(async () => {
   } catch (e: any) {
     console.error('[backend] failed to start:', e?.message ?? e)
   }
+
+  // ✅ Registrar protocolo app:// antes de crear ventana
+  registerAppProtocol()
 
   buildMenu()
 
