@@ -1,0 +1,116 @@
+name: Build installers (mac/win/linux)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            inventario-desktop/package-lock.json
+            inventory-backend/package-lock.json
+
+      - name: Install deps (backend)
+        working-directory: inventory-backend
+        run: npm ci
+
+      - name: Install deps (desktop)
+        working-directory: inventario-desktop
+        run: npm ci
+
+      - name: Build DMG
+        working-directory: inventario-desktop
+        run: |
+          npm run sync:backend
+          npx tsc -p tsconfig.json --noEmit
+          npx vite build --config electron.vite.config.ts
+          cp dist-electron/preload.mjs dist-electron/preload.cjs
+          npx electron-builder --config electron-builder.json5 --mac dmg
+
+      - name: Upload artifact (DMG)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: inventario-desktop/release/**/*.dmg
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            inventario-desktop/package-lock.json
+            inventory-backend/package-lock.json
+
+      - name: Install deps (backend)
+        working-directory: inventory-backend
+        run: npm ci
+
+      - name: Install deps (desktop)
+        working-directory: inventario-desktop
+        run: npm ci
+
+      - name: Build NSIS
+        working-directory: inventario-desktop
+        shell: pwsh
+        run: |
+          npm run sync:backend
+          npx tsc -p tsconfig.json --noEmit
+          npx vite build --config electron.vite.config.ts
+          Copy-Item dist-electron\preload.mjs dist-electron\preload.cjs -Force
+          npx electron-builder --config electron-builder.json5 --win nsis
+
+      - name: Upload artifact (NSIS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-nsis
+          path: inventario-desktop/release/**/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            inventario-desktop/package-lock.json
+            inventory-backend/package-lock.json
+
+      - name: Install deps (backend)
+        working-directory: inventory-backend
+        run: npm ci
+
+      - name: Install deps (desktop)
+        working-directory: inventario-desktop
+        run: npm ci
+
+      - name: Build AppImage
+        working-directory: inventario-desktop
+        run: |
+          npm run sync:backend
+          npx tsc -p tsconfig.json --noEmit
+          npx vite build --config electron.vite.config.ts
+          cp dist-electron/preload.mjs dist-electron/preload.cjs
+          npx electron-builder --config electron-builder.json5 --linux AppImage
+
+      - name: Upload artifact (AppImage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: inventario-desktop/release/**/*.AppImage
