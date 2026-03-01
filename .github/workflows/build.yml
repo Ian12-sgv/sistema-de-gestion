@@ -11,6 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Show repo root
+        run: |
+          pwd
+          ls -la
+
+      - name: Validate folders
+        run: |
+          test -d inventario-desktop || (echo "FALTA: inventario-desktop/" && exit 1)
+          test -d inventory-backend || (echo "FALTA: inventory-backend/ (el backend debe estar en la raíz con ese nombre)" && exit 1)
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -42,6 +52,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Show repo root
+        shell: pwsh
+        run: |
+          Get-Location
+          Get-ChildItem
+
+      - name: Validate folders
+        shell: pwsh
+        run: |
+          if (!(Test-Path "inventario-desktop")) { throw "FALTA: inventario-desktop/" }
+          if (!(Test-Path "inventory-backend")) { throw "FALTA: inventory-backend/ (el backend debe estar en la raíz con ese nombre)" }
 
       - uses: actions/setup-node@v4
         with:
@@ -75,6 +97,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Show repo root
+        run: |
+          pwd
+          ls -la
+
+      - name: Validate folders
+        run: |
+          test -d inventario-desktop || (echo "FALTA: inventario-desktop/" && exit 1)
+          test -d inventory-backend || (echo "FALTA: inventory-backend/ (el backend debe estar en la raíz con ese nombre)" && exit 1)
 
       - uses: actions/setup-node@v4
         with:
