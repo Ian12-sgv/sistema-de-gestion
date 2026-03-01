@@ -8,7 +8,6 @@ import { startBackend, stopBackend, getBackendBaseUrl } from './backend-runner'
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog } = electron
 
-// ✅ Nombre estable para que la carpeta de configuración sea clara para el usuario
 app.setName('Sistema de Gestion')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -175,9 +174,8 @@ function buildMenu() {
 }
 
 function getRendererIndexHtmlPath(): string {
-  // dist-electron: .../resources/app.asar/dist-electron
-  // dist:         .../resources/app.asar/dist
-  return path.resolve(__dirname, '..', 'dist', 'index.html')
+  // ✅ FIX: en empaquetado usar app.getAppPath() (apunta a app.asar)
+  return path.join(app.getAppPath(), 'dist', 'index.html')
 }
 
 async function loadRenderer(win: electron.BrowserWindow) {
@@ -228,11 +226,8 @@ function createWindow() {
   })
 
   mainWindow = win
-
-  // Carga robusta (si falla, muestra dialog)
   loadRenderer(win)
 
-  // ✅ Debug: si setean FORCE_DEVTOOLS=1, abrimos DevTools automáticamente
   if (process.env.FORCE_DEVTOOLS === '1') {
     win.webContents.once('did-finish-load', () => {
       openDevTools()
