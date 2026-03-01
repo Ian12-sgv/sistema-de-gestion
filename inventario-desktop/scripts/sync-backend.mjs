@@ -72,15 +72,13 @@ function run(cmd, args, opts = {}) {
 
   const res = spawnSync(cmd, args, {
     stdio: 'inherit',
-    shell: isCmdFile, // <- clave
+    shell: isCmdFile,
     ...opts
   })
 
-  // ✅ Si no se pudo "spawn" (exit null), Node pone res.error
   if (res.error) {
     fail(`Falló al ejecutar: ${cmd} ${args.join(' ')}\n${res.error.message}`)
   }
-
   if (res.status !== 0) {
     fail(`Falló: ${cmd} ${args.join(' ')} (exit=${res.status})`)
   }
@@ -97,6 +95,10 @@ function ensureBackendSource() {
   const pkg = path.join(backendSrc, 'package.json')
   if (!exists(pkg)) {
     fail(`No existe ${pkg}. Esa carpeta no parece un proyecto Node/NestJS.`)
+  }
+  const prismaSchema = path.join(backendSrc, 'prisma', 'schema.prisma')
+  if (!exists(prismaSchema)) {
+    fail(`No existe ${prismaSchema}. Prisma necesita prisma/schema.prisma en el backend fuente.`)
   }
 }
 
@@ -154,12 +156,16 @@ function pickMainJs(distDir) {
 function buildBackendSource() {
   log(`Backend fuente: ${backendSrc}`)
 
+  // deps backend fuente (solo si no existen)
   const nm = path.join(backendSrc, 'node_modules')
   if (!exists(nm)) {
     const lock = path.join(backendSrc, 'package-lock.json')
     if (exists(lock)) run(npmCmd, ['ci'], { cwd: backendSrc })
     else run(npmCmd, ['install'], { cwd: backendSrc })
   }
+
+  // ✅ FIX: Prisma Client debe existir antes de compilar TypeScript (nest build)
+  run(npxCmd, ['prisma', 'generate'], { cwd: backendSrc })
 
   // build
   run(npmCmd, ['run', 'build'], { cwd: backendSrc })
@@ -183,10 +189,7 @@ function buildBackendSource() {
 
   const mainAbs = pickMainJs(distDir)
   if (!mainAbs) {
-    fail(
-      `Nest build generó ${distDir} pero no encontré ningún main.js dentro.\n` +
-        `Ejecuta en el backend: find "${distDir}" -maxdepth 12 -name "main.js" -print`
-    )
+    fail(`Nest build generó ${distDir} pero no encontré ningún main.js dentro.`)
   }
 
   return { distDir, mainAbs }
@@ -203,14 +206,10 @@ function prepareBackendDst() {
   copyFileSafe(path.join(backendSrc, 'package.json'), path.join(backendDst, 'package.json'))
 
   const lock = path.join(backendSrc, 'package-lock.json')
-  if (exists(lock)) {
-    copyFileSafe(lock, path.join(backendDst, 'package-lock.json'))
-  }
+  if (exists(lock)) copyFileSafe(lock, path.join(backendDst, 'package-lock.json'))
 
   const prismaSrc = path.join(backendSrc, 'prisma')
-  if (!exists(prismaSrc)) {
-    fail(`No existe carpeta prisma/ en el backend fuente: ${prismaSrc}`)
-  }
+  if (!exists(prismaSrc)) fail(`No existe carpeta prisma/ en el backend fuente: ${prismaSrc}`)
   copyDir(prismaSrc, path.join(backendDst, 'prisma'))
 }
 
@@ -219,17 +218,15 @@ function installProdDepsAndGenerate() {
   if (exists(lock)) run(npmCmd, ['ci', '--omit=dev'], { cwd: backendDst })
   else run(npmCmd, ['install', '--omit=dev'], { cwd: backendDst })
 
+  // Genera Prisma Client/engines para el runtime en backendDst
   run(npxCmd, ['prisma', 'generate'], { cwd: backendDst })
 }
 
 function writeShimIfNeeded(mainRel) {
   const normalized = mainRel.replaceAll('\\', '/')
   if (normalized === 'main.js') return
-
   const shimPath = path.join(backendDst, 'dist', 'main.js')
-  const shim = ['/* Auto-generado por scripts/sync-backend.mjs */', `require('./${normalized}');`, ''].join('\n')
-
-  fs.writeFileSync(shimPath, shim, 'utf8')
+  fs.writeFileSync(shimPath, `/* Auto-generado */\nrequire('./${normalized}');\n`, 'utf8')
   log(`Shim creado: backend/dist/main.js -> ./${normalized}`)
 }
 
@@ -241,9 +238,7 @@ function copyDistAndEnsureEntry(distDir, mainAbs) {
   writeShimIfNeeded(mainRel)
 
   const entryDst = path.join(backendDst, 'dist', 'main.js')
-  if (!exists(entryDst)) {
-    fail(`No quedó ${entryDst}. Algo falló copiando la salida del backend.`)
-  }
+  if (!exists(entryDst)) fail(`No quedó ${entryDst}. Algo falló copiando la salida del backend.`)
 }
 
 function main() {
