@@ -1,0 +1,14 @@
+**/node_modules/
+**/dist/
+**/dist-electron/
+**/release/
+
+# backend generado dentro del desktop (NO se commitea)
+inventario-desktop/backend/
+
+# logs locales
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
