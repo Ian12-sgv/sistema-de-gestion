@@ -15,13 +15,13 @@
     "dist-electron"
   ],
 
-  // ✅ Copiamos TODO el backend generado (más robusto)
+  // ✅ Copiar TODO el backend generado (más robusto)
   "extraResources": [
     { "from": "backend", "to": "backend" },
     { "from": "backend.env.ejemplo", "to": "backend.env.ejemplo" }
   ],
 
-  // ✅ Prisma engines fuera de asar
+  // ✅ Prisma engines fuera de asar (por si alguna vez cae dentro)
   "asarUnpack": [
     "**/backend/node_modules/.prisma/**",
     "**/backend/node_modules/@prisma/engines/**"

@@ -15,6 +15,12 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Validate folders
+        shell: pwsh
+        run: |
+          if (!(Test-Path "inventario-desktop")) { throw "FALTA: inventario-desktop/" }
+          if (!(Test-Path "inventory-backend")) { throw "FALTA: inventory-backend/" }
+
       - name: Install deps (backend)
         working-directory: inventory-backend
         run: npm ci
@@ -23,18 +29,20 @@ jobs:
         working-directory: inventario-desktop
         run: npm ci
 
-      - name: Sync backend (must exist)
+      - name: Sync backend (MUST create backend/dist/main.js)
         working-directory: inventario-desktop
         shell: pwsh
         run: |
           npm run sync:backend
           if (!(Test-Path "backend\dist\main.js")) {
-            Write-Host "ERROR: NO existe backend\dist\main.js después de sync:backend"
-            Write-Host "Listando backend\dist:"
+            Write-Host "ERROR: backend\dist\main.js NO existe después de sync:backend"
+            Write-Host "Contenido de backend\dist:"
             if (Test-Path "backend\dist") { Get-ChildItem "backend\dist" -Recurse | Select-Object FullName }
             exit 1
           }
           Write-Host "OK: backend\dist\main.js existe"
+          Write-Host "Contenido de backend:"
+          Get-ChildItem "backend" | Select-Object Name
 
       - name: Build NSIS
         working-directory: inventario-desktop
@@ -55,20 +63,30 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Validate folders
+        run: |
+          test -d inventario-desktop || (echo "FALTA: inventario-desktop/" && exit 1)
+          test -d inventory-backend || (echo "FALTA: inventory-backend/" && exit 1)
+
       - name: Install deps (backend)
         working-directory: inventory-backend
         run: npm ci
+
       - name: Install deps (desktop)
         working-directory: inventario-desktop
         run: npm ci
-      - name: Sync backend (must exist)
+
+      - name: Sync backend (MUST create backend/dist/main.js)
         working-directory: inventario-desktop
         run: |
           npm run sync:backend
           test -f backend/dist/main.js
+
       - name: Build DMG
         working-directory: inventario-desktop
         run: |
@@ -76,7 +94,8 @@ jobs:
           npx vite build --config electron.vite.config.ts
           cp dist-electron/preload.mjs dist-electron/preload.cjs
           npx electron-builder --config electron-builder.json5 --mac dmg
-      - name: Upload artifact (DMG)
+
+      - name: Upload artifact (Mac)
         uses: actions/upload-artifact@v4
         with:
           name: mac-dmg
@@ -86,20 +105,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Validate folders
+        run: |
+          test -d inventario-desktop || (echo "FALTA: inventario-desktop/" && exit 1)
+          test -d inventory-backend || (echo "FALTA: inventory-backend/" && exit 1)
+
       - name: Install deps (backend)
         working-directory: inventory-backend
         run: npm ci
+
       - name: Install deps (desktop)
         working-directory: inventario-desktop
         run: npm ci
-      - name: Sync backend (must exist)
+
+      - name: Sync backend (MUST create backend/dist/main.js)
         working-directory: inventario-desktop
         run: |
           npm run sync:backend
           test -f backend/dist/main.js
+
       - name: Build AppImage
         working-directory: inventario-desktop
         run: |
@@ -107,6 +136,7 @@ jobs:
           npx vite build --config electron.vite.config.ts
           cp dist-electron/preload.mjs dist-electron/preload.cjs
           npx electron-builder --config electron-builder.json5 --linux AppImage
+
       - name: Upload artifact (Linux)
         uses: actions/upload-artifact@v4
         with:
