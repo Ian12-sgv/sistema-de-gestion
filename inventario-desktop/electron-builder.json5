@@ -15,16 +15,13 @@
     "dist-electron"
   ],
 
+  // ✅ Copiamos TODO el backend generado (más robusto)
   "extraResources": [
-    { "from": "backend/dist", "to": "backend/dist" },
-    { "from": "backend/node_modules", "to": "backend/node_modules" },
-    { "from": "backend/prisma", "to": "backend/prisma" },
-    { "from": "backend/package.json", "to": "backend/package.json" },
-
-    // Archivo ejemplo para el usuario (también queda dentro de Resources)
+    { "from": "backend", "to": "backend" },
     { "from": "backend.env.ejemplo", "to": "backend.env.ejemplo" }
   ],
 
+  // ✅ Prisma engines fuera de asar
   "asarUnpack": [
     "**/backend/node_modules/.prisma/**",
     "**/backend/node_modules/@prisma/engines/**"
@@ -35,13 +32,10 @@
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
   },
 
-  // ✅ DMG: la app NO debe tener path; electron-builder usa el .app real
   "dmg": {
     "contents": [
       { "x": 140, "y": 220, "type": "file" },
       { "x": 430, "y": 220, "type": "link", "path": "/Applications" },
-
-      // ✅ Archivo visible para que el usuario lo copie/edite/importa
       { "x": 140, "y": 420, "type": "file", "path": "backend.env.ejemplo" }
     ]
   },
