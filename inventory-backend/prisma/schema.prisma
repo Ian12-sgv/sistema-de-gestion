@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  type      String   // 'CENTRAL'|'BRANCH' via CHECK en DB
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  warehouses Warehouse[]
+  usersDefaultBranch User[] @relation("DefaultBranch")
+
+  @@map("branches")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid()) @db.Uuid
+
+  // ✅ AHORA OPCIONAL (permite bodega sin sucursal)
+  branchId  String?  @db.Uuid @map("branch_id")
+
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // ✅ Relación opcional
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  stockBalances StockBalance[]
+  sequences     DocumentSequence[]
+  docsFrom      InventoryDoc[] @relation("DocsFromWarehouse")
+  docsTo        InventoryDoc[] @relation("DocsToWarehouse")
+  usersDefaultWarehouse User[] @relation("DefaultWarehouse")
+
+  @@index([branchId])
+  @@map("warehouses")
+}
+
+model Product {
+  id             String   @id @default(uuid()) @db.Uuid
+  barcode        String   @unique
+
+  // Existentes
+  reference      String?
+  brand          String?
+  category       String?
+  description    String?
+
+  // ✅ NUEVOS CAMPOS SOLICITADOS
+  brandCode       String? @map("brand_code")        // Código de marca
+  size            String? @map("size")              // Talla
+  color           String? @map("color")             // Color
+  containerNumber String? @map("container_number")  // Número de contenedor
+  billingNumber   String? @map("billing_number")    // Número de facturación
+
+  cost           Decimal  @db.Decimal(18,2)
+  priceRetail    Decimal  @map("price_retail") @db.Decimal(18,2)
+  priceWholesale Decimal  @map("price_wholesale") @db.Decimal(18,2)
+
+  // ✅ DB es boolean: true=activo, false=inactivo
+  status         Boolean  @default(true)
+
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  audits ProductAudit[]
+  lines  InventoryDocLine[]
+  stockBalances StockBalance[]
+
+  @@map("products")
+}
+
+model ProductAudit {
+  id              String   @id @default(uuid()) @db.Uuid
+  productId       String   @db.Uuid @map("product_id")
+  changedAt       DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+  changedBy       String   @map("changed_by")
+  changedByUserId String?  @db.Uuid @map("changed_by_user_id")
+  before          Json
+  after           Json
+
+  product       Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  changedByUser User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([productId, changedAt])
+  @@map("product_audit")
+}
+
+model DocumentSequence {
+  id          String  @id @default(uuid()) @db.Uuid
+  docType     String  @map("doc_type")
+  warehouseId String? @db.Uuid @map("warehouse_id")
+  nextNumber  BigInt  @map("next_number")
+
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([docType, warehouseId])
+  @@index([docType, warehouseId])
+  @@map("document_sequences")
+}
+
+model InventoryDoc {
+  id              String   @id @default(uuid()) @db.Uuid
+  docType          String   @map("doc_type")
+  docNumber        BigInt?  @map("doc_number")
+  status           String   // 'DRAFT'|'POSTED'|'CANCELLED'
+  fromWarehouseId  String?  @db.Uuid @map("from_warehouse_id")
+  toWarehouseId    String?  @db.Uuid @map("to_warehouse_id")
+  notes            String?
+  createdBy        String   @map("created_by")
+  postedBy         String?  @map("posted_by")
+  createdByUserId  String?  @db.Uuid @map("created_by_user_id")
+  postedByUserId   String?  @db.Uuid @map("posted_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  postedAt         DateTime? @map("posted_at") @db.Timestamptz(6)
+
+  fromWarehouse Warehouse? @relation("DocsFromWarehouse", fields: [fromWarehouseId], references: [id], onDelete: Restrict)
+  toWarehouse   Warehouse? @relation("DocsToWarehouse", fields: [toWarehouseId], references: [id], onDelete: Restrict)
+
+  createdByUser User? @relation("DocsCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  postedByUser  User? @relation("DocsPostedByUser", fields: [postedByUserId], references: [id], onDelete: SetNull)
+
+  lines InventoryDocLine[]
+
+  @@index([docType, status])
+  @@unique([docType, docNumber])
+  @@map("inventory_docs")
+}
+
+model InventoryDocLine {
+  id        String  @id @default(uuid()) @db.Uuid
+  docId     String  @db.Uuid @map("doc_id")
+  productId String  @db.Uuid @map("product_id")
+  qty       Decimal @db.Decimal(18,3)
+  unitCost  Decimal @map("unit_cost") @db.Decimal(18,2)
+
+  doc     InventoryDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([docId])
+  @@index([productId])
+  @@map("inventory_doc_lines")
+}
+
+model StockBalance {
+  warehouseId String   @db.Uuid @map("warehouse_id")
+  productId   String   @db.Uuid @map("product_id")
+  qtyOnHand   Decimal  @map("qty_on_hand") @db.Decimal(18,3)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@id([warehouseId, productId])
+  @@map("stock_balance")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  username           String   @unique
+  fullName           String   @map("full_name")
+  email              String?  @unique
+  phone              String?  @unique
+  passwordHash       String   @map("password_hash")
+  mustChangePassword Boolean  @default(false) @map("must_change_password")
+  isActive           Boolean  @default(true) @map("is_active")
+  defaultBranchId    String?  @db.Uuid @map("default_branch_id")
+  defaultWarehouseId String?  @db.Uuid @map("default_warehouse_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+
+  defaultBranch    Branch?    @relation("DefaultBranch", fields: [defaultBranchId], references: [id], onDelete: SetNull)
+  defaultWarehouse Warehouse? @relation("DefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
+
+  productAudits ProductAudit[]
+  docsCreated   InventoryDoc[] @relation("DocsCreatedByUser")
+  docsPosted    InventoryDoc[] @relation("DocsPostedByUser")
+
+  @@map("users")
+}
+
+model UserRole {
+  userId String @db.Uuid @map("user_id")
+  roleId String @db.Uuid @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}

@@ -3,12 +3,9 @@
 **/dist-electron/
 **/release/
 
-# backend generado dentro del desktop (NO se commitea)
+# backend generado dentro del desktop (no se commitea)
 inventario-desktop/backend/
 
-# logs locales
-*.log
-
-# OS
 .DS_Store
 Thumbs.db
+*.log

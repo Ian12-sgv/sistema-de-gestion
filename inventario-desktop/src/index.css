@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* =========================
+   Design tokens (Tailwind v4)
+   ========================= */
+@theme {
+  /* Typography */
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* Radii (keeps rounded-sm/md/lg etc. consistent) */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Semantic colors (use bg-bg, bg-surface, text-fg, border-border, etc.) */
+  --color-bg: oklch(0.985 0.005 255);
+  --color-surface: oklch(1 0 0);
+  --color-muted: oklch(0.96 0.006 255);
+  --color-border: oklch(0.90 0.008 255);
+
+  --color-fg: oklch(0.24 0.02 255);
+  --color-fg-muted: oklch(0.48 0.02 255);
+
+  --color-primary: oklch(0.56 0.20 255);
+  --color-primary-foreground: oklch(0.98 0.01 255);
+
+  --color-danger: oklch(0.58 0.22 25);
+  --color-danger-foreground: oklch(0.98 0.01 255);
+
+  /* Shadows */
+  --shadow-elev-1: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.10);
+  --shadow-elev-2: 0 10px 30px rgb(0 0 0 / 0.12), 0 3px 10px rgb(0 0 0 / 0.08);
+}
+
+/* =========================
+   Base (desktop dashboard defaults)
+   ========================= */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    margin: 0;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-primary) 22%, transparent);
+  }
+}
+
+/* =========================
+   Reusable UI primitives (design system)
+   ========================= */
+@layer components {
+  .card {
+    @apply bg-surface border border-border rounded-lg shadow-elev-1;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-fg mb-1;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg
+           placeholder:text-fg-muted shadow-sm
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary;
+  }
+
+  .btn {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium
+           transition select-none
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground shadow-sm hover:brightness-95 active:brightness-90;
+  }
+
+  .btn-secondary {
+    @apply bg-surface text-fg border border-border hover:bg-muted;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-danger-foreground hover:brightness-95 active:brightness-90;
+  }
+
+  .alert {
+    @apply rounded-md border px-3 py-2 text-sm;
+  }
+
+  .alert-danger {
+    @apply border-danger/30 bg-danger/5 text-danger;
+  }
+}
+
+/* =========================
+   Small utilities for desktop UX
+   ========================= */
+@layer utilities {
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+}

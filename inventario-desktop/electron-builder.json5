@@ -1,0 +1,65 @@
+// electron-builder.json5
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+
+  "appId": "com.byrossi.inventario",
+  "productName": "Sistema de Gestion",
+  "asar": true,
+
+  "directories": {
+    "output": "release/${version}"
+  },
+
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+
+  "extraResources": [
+    { "from": "backend/dist", "to": "backend/dist" },
+    { "from": "backend/node_modules", "to": "backend/node_modules" },
+    { "from": "backend/prisma", "to": "backend/prisma" },
+    { "from": "backend/package.json", "to": "backend/package.json" },
+
+    // Archivo ejemplo para el usuario (también queda dentro de Resources)
+    { "from": "backend.env.ejemplo", "to": "backend.env.ejemplo" }
+  ],
+
+  "asarUnpack": [
+    "**/backend/node_modules/.prisma/**",
+    "**/backend/node_modules/@prisma/engines/**"
+  ],
+
+  "mac": {
+    "target": ["dmg"],
+    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+  },
+
+  // ✅ DMG: la app NO debe tener path; electron-builder usa el .app real
+  "dmg": {
+    "contents": [
+      { "x": 140, "y": 220, "type": "file" },
+      { "x": 430, "y": 220, "type": "link", "path": "/Applications" },
+
+      // ✅ Archivo visible para que el usuario lo copie/edite/importa
+      { "x": 140, "y": 420, "type": "file", "path": "backend.env.ejemplo" }
+    ]
+  },
+
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+  },
+
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false
+  },
+
+  "linux": {
+    "target": ["AppImage"],
+    "artifactName": "${productName}-Linux-${version}.${ext}"
+  }
+}
