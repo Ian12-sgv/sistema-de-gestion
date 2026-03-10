@@ -44,6 +44,73 @@ model Warehouse {
   @@map("warehouses")
 }
 
+model ProductLine {
+  id             String           @id @default(uuid()) @db.Uuid
+  name           String
+  normalizedName String           @unique @map("normalized_name")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subLines ProductSubLine[]
+  products Product[]
+
+  @@map("product_lines")
+}
+
+model ProductSubLine {
+  id             String           @id @default(uuid()) @db.Uuid
+  lineId         String           @db.Uuid @map("line_id")
+  name           String
+  normalizedName String           @map("normalized_name")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  line       ProductLine       @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  categories ProductCategory[]
+  products   Product[]
+
+  @@unique([lineId, normalizedName])
+  @@index([lineId])
+  @@map("product_sub_lines")
+}
+
+model ProductCategory {
+  id             String              @id @default(uuid()) @db.Uuid
+  subLineId      String              @db.Uuid @map("sub_line_id")
+  name           String
+  normalizedName String              @map("normalized_name")
+  isActive       Boolean             @default(true) @map("is_active")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subLine       ProductSubLine       @relation(fields: [subLineId], references: [id], onDelete: Restrict)
+  subCategories ProductSubCategory[]
+  products      Product[]            @relation("ProductsByCategory")
+
+  @@unique([subLineId, normalizedName])
+  @@index([subLineId])
+  @@map("product_categories")
+}
+
+model ProductSubCategory {
+  id             String           @id @default(uuid()) @db.Uuid
+  categoryId     String           @db.Uuid @map("category_id")
+  name           String
+  normalizedName String           @map("normalized_name")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  products Product[]
+
+  @@unique([categoryId, normalizedName])
+  @@index([categoryId])
+  @@map("product_sub_categories")
+}
+
 model Product {
   id             String   @id @default(uuid()) @db.Uuid
   barcode        String   @unique
@@ -54,27 +121,40 @@ model Product {
   category       String?
   description    String?
 
+  // Jerarquía Línea > Sub línea > Categoría > Sub categoría
+  lineId            String? @db.Uuid @map("line_id")
+  subLineId         String? @db.Uuid @map("sub_line_id")
+  productCategoryId String? @db.Uuid @map("product_category_id")
+  subCategoryId     String? @db.Uuid @map("sub_category_id")
+
   // ✅ NUEVOS CAMPOS SOLICITADOS
-  brandCode       String? @map("brand_code")        // Código de marca
-  size            String? @map("size")              // Talla
-  color           String? @map("color")             // Color
-  containerNumber String? @map("container_number")  // Número de contenedor
-  billingNumber   String? @map("billing_number")    // Número de facturación
+  brandCode       String? @map("brand_code")
+  size            String? @map("size")
+  color           String? @map("color")
+  containerNumber String? @map("container_number")
+  billingNumber   String? @map("billing_number")
 
   cost           Decimal  @db.Decimal(18,2)
   priceRetail    Decimal  @map("price_retail") @db.Decimal(18,2)
   priceWholesale Decimal  @map("price_wholesale") @db.Decimal(18,2)
-
-  // ✅ DB es boolean: true=activo, false=inactivo
   status         Boolean  @default(true)
 
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  line            ProductLine?        @relation(fields: [lineId], references: [id], onDelete: SetNull)
+  subLine         ProductSubLine?     @relation(fields: [subLineId], references: [id], onDelete: SetNull)
+  productCategory ProductCategory?    @relation("ProductsByCategory", fields: [productCategoryId], references: [id], onDelete: SetNull)
+  subCategory     ProductSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+
   audits ProductAudit[]
   lines  InventoryDocLine[]
   stockBalances StockBalance[]
 
+  @@index([lineId])
+  @@index([subLineId])
+  @@index([productCategoryId])
+  @@index([subCategoryId])
   @@map("products")
 }
 

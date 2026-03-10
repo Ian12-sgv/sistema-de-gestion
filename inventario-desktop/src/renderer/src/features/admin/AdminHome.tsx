@@ -26,9 +26,18 @@ import {
   type Product,
   type ProductAudit,
   createProduct,
+  createProductCategory,
+  createProductLine,
+  createProductSubCategory,
+  createProductSubLine,
   deactivateProduct,
   getProductAudit,
+  getProductTaxonomyTree,
   listProducts,
+  type ProductCategoryNode,
+  type ProductLineNode,
+  type ProductSubCategoryNode,
+  type ProductSubLineNode,
   updateProduct
 } from './AdminApi'
 
@@ -395,6 +404,10 @@ export function AdminHome() {
         p.brand ?? '',
         p.description ?? '',
         p.category ?? '',
+        p.lineName ?? '',
+        p.subLineName ?? '',
+        p.categoryName ?? '',
+        p.subCategoryName ?? '',
         p.status ?? '',
         p.brandCode ?? '',
         p.size ?? '',
@@ -744,7 +757,7 @@ export function AdminHome() {
                 <input
                   value={qProducts}
                   onChange={(e) => setQProducts(e.target.value)}
-                  placeholder="Buscar por barcode / descripción / marca / brandCode / talla / color / contenedor / facturación / status…"
+                  placeholder="Buscar por barcode / descripción / marca / género / modelo / talla / color / contenedor / facturación…"
                   className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
                 />
                 <div className="text-xs text-fg-muted whitespace-nowrap">
@@ -752,22 +765,23 @@ export function AdminHome() {
                 </div>
               </div>
 
-              <TableShell minWidth={1200}>
+              <TableShell minWidth={1600}>
                 <thead>
                   <tr>
-                    <Th>Barcode</Th>
+                    <Th>Código de barras</Th>
                     <Th>Descripción</Th>
                     <Th>Marca</Th>
-                    <Th>BrandCode</Th>
-                    <Th>Talla</Th>
-                    <Th>Color</Th>
+                    <Th>Cód. marca</Th>
+                    <Th>Línea / género</Th>
+                    <Th>Sub línea / modelo</Th>
+                    <Th>Categoría / talla</Th>
+                    <Th>Sub categoría / color</Th>
                     <Th>Contenedor</Th>
                     <Th>Facturación</Th>
-                    <Th>Categoría</Th>
                     <Th align="right">Costo</Th>
                     <Th align="right">Detal</Th>
                     <Th align="right">Mayor</Th>
-                    <Th>Status</Th>
+                    <Th>Estado</Th>
                     <Th>Acciones</Th>
                   </tr>
                 </thead>
@@ -778,11 +792,12 @@ export function AdminHome() {
                       <Td>{p.description ?? p.reference ?? '-'}</Td>
                       <Td>{p.brand ?? '-'}</Td>
                       <Td>{p.brandCode ?? '-'}</Td>
-                      <Td>{p.size ?? '-'}</Td>
-                      <Td>{p.color ?? '-'}</Td>
+                      <Td>{formatProductValue(p.lineName)}</Td>
+                      <Td>{formatProductValue(p.subLineName)}</Td>
+                      <Td>{formatProductValue(p.categoryName, p.size)}</Td>
+                      <Td>{formatProductValue(p.subCategoryName, p.color)}</Td>
                       <Td>{p.containerNumber ?? '-'}</Td>
                       <Td>{p.billingNumber ?? '-'}</Td>
-                      <Td>{p.category ?? '-'}</Td>
                       <Td align="right">{String(p.cost ?? '')}</Td>
                       <Td align="right">{String(p.priceRetail ?? '')}</Td>
                       <Td align="right">{String(p.priceWholesale ?? '')}</Td>
@@ -793,7 +808,7 @@ export function AdminHome() {
                             Editar
                           </button>
                           <button type="button" onClick={() => openAudit(p)} disabled={busy} className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-muted disabled:opacity-50">
-                            Audit
+                            Auditoría
                           </button>
                           <button type="button" onClick={() => onDeactivateProduct(p)} disabled={busy || String(p.status).toUpperCase() === 'INACTIVE'} className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-muted disabled:opacity-50">
                             Desactivar
@@ -804,7 +819,7 @@ export function AdminHome() {
                   ))}
                   {filteredProducts.length === 0 && (
                     <tr>
-                      <td colSpan={14} className="px-3 py-6 text-sm text-fg-muted">
+                      <td colSpan={15} className="px-3 py-6 text-sm text-fg-muted">
                         Sin resultados
                       </td>
                     </tr>
@@ -1568,6 +1583,11 @@ function PasswordModal({
   )
 }
 
+function formatProductValue(primary?: string | null, fallback?: string | null) {
+  const value = primary ?? fallback ?? null
+  return value && value.trim() ? value : '-'
+}
+
 /** =========================
  * MODAL PRODUCT (tu código actual)
  * ========================= */
@@ -1588,14 +1608,16 @@ function ProductModal({
   const [reference, setReference] = useState(editing?.reference ?? '')
   const [brand, setBrand] = useState(editing?.brand ?? '')
 
+  const [lineId, setLineId] = useState(editing?.lineId ?? '')
+  const [subLineId, setSubLineId] = useState(editing?.subLineId ?? '')
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
+  const [subCategoryId, setSubCategoryId] = useState(editing?.subCategoryId ?? '')
+
   const [brandCode, setBrandCode] = useState(editing?.brandCode ?? '')
-  const [size, setSize] = useState(editing?.size ?? '')
-  const [color, setColor] = useState(editing?.color ?? '')
   const [containerNumber, setContainerNumber] = useState(editing?.containerNumber ?? '')
   const [billingNumber, setBillingNumber] = useState(editing?.billingNumber ?? '')
 
   const [description, setDescription] = useState(editing?.description ?? '')
-  const [category, setCategory] = useState(editing?.category ?? '')
 
   const [cost, setCost] = useState(editing?.cost ? String(editing.cost) : '')
   const [priceRetail, setPriceRetail] = useState(editing?.priceRetail ? String(editing.priceRetail) : '')
@@ -1603,18 +1625,201 @@ function ProductModal({
 
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>(editing?.status ?? 'ACTIVE')
 
+  const [taxonomy, setTaxonomy] = useState<ProductLineNode[]>([])
+  const [taxonomyLoading, setTaxonomyLoading] = useState(true)
+  const [taxonomyBusy, setTaxonomyBusy] = useState(false)
+  const [taxonomyDraftLevel, setTaxonomyDraftLevel] = useState<'line' | 'subLine' | 'category' | 'subCategory' | null>(null)
+  const [taxonomyDraftName, setTaxonomyDraftName] = useState('')
   const [localErr, setLocalErr] = useState<string | null>(null)
   const barcodeRef = useRef<HTMLInputElement | null>(null)
+  const taxonomyDraftRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     barcodeRef.current?.focus()
   }, [])
 
+  useEffect(() => {
+    if (!taxonomyDraftLevel) return
+    taxonomyDraftRef.current?.focus()
+  }, [taxonomyDraftLevel])
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadTaxonomy() {
+      setTaxonomyLoading(true)
+      try {
+        const rows = await getProductTaxonomyTree()
+        if (mounted) setTaxonomy(rows)
+      } catch (e: any) {
+        if (mounted) setLocalErr(formatNestError(e))
+      } finally {
+        if (mounted) setTaxonomyLoading(false)
+      }
+    }
+
+    loadTaxonomy()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const selectedLine = useMemo(() => taxonomy.find((line) => line.id === lineId) ?? null, [taxonomy, lineId])
+  const availableSubLines = selectedLine?.subLines ?? []
+  const selectedSubLine = useMemo(() => availableSubLines.find((item) => item.id === subLineId) ?? null, [availableSubLines, subLineId])
+  const availableCategories = selectedSubLine?.categories ?? []
+  const selectedCategory = useMemo(() => availableCategories.find((item) => item.id === categoryId) ?? null, [availableCategories, categoryId])
+  const availableSubCategories = selectedCategory?.subCategories ?? []
+  const selectedSubCategory = useMemo(() => availableSubCategories.find((item) => item.id === subCategoryId) ?? null, [availableSubCategories, subCategoryId])
+
+  function taxonomyLevelLabel(level: 'line' | 'subLine' | 'category' | 'subCategory') {
+    if (level === 'line') return 'línea / género'
+    if (level === 'subLine') return 'sub línea / modelo o tipo de prenda'
+    if (level === 'category') return 'categoría / talla'
+    return 'sub categoría / color'
+  }
+
+  function taxonomyLevelFieldLabel(level: 'line' | 'subLine' | 'category' | 'subCategory') {
+    if (level === 'line') return 'Línea (Género)'
+    if (level === 'subLine') return 'Sub línea (Modelo / tipo de prenda)'
+    if (level === 'category') return 'Categoría (Talla)'
+    return 'Sub categoría (Color)'
+  }
+
+  function taxonomyLevelPlaceholder(level: 'line' | 'subLine' | 'category' | 'subCategory') {
+    if (level === 'line') return 'Ej: Dama, Caballero, Niño'
+    if (level === 'subLine') return 'Ej: Franela, Jean, Vestido'
+    if (level === 'category') return 'Ej: S, M, L, 28, 30'
+    return 'Ej: Negro, Azul, Rojo'
+  }
+
+  function taxonomyLevelContext(level: 'line' | 'subLine' | 'category' | 'subCategory') {
+    if (level === 'line') return 'Se creará como un nuevo género disponible para todos los productos.'
+    if (level === 'subLine') return `Se creará dentro de la línea "${selectedLine?.name ?? '-'}".`
+    if (level === 'category') return `Se creará dentro de la sub línea "${selectedSubLine?.name ?? '-'}".`
+    return `Se creará dentro de la categoría "${selectedCategory?.name ?? '-'}".`
+  }
+
+  function closeTaxonomyDraft() {
+    setTaxonomyDraftLevel(null)
+    setTaxonomyDraftName('')
+  }
+
+  useEffect(() => {
+    if (!lineId) {
+      if (subLineId) setSubLineId('')
+      if (categoryId) setCategoryId('')
+      if (subCategoryId) setSubCategoryId('')
+      if (taxonomyDraftLevel && taxonomyDraftLevel !== 'line') closeTaxonomyDraft()
+      return
+    }
+
+    if (subLineId && !availableSubLines.some((item) => item.id === subLineId)) {
+      setSubLineId('')
+      setCategoryId('')
+      setSubCategoryId('')
+      if (taxonomyDraftLevel === 'subLine' || taxonomyDraftLevel === 'category' || taxonomyDraftLevel === 'subCategory') {
+        closeTaxonomyDraft()
+      }
+    }
+  }, [lineId, subLineId, categoryId, subCategoryId, availableSubLines, taxonomyDraftLevel])
+
+  useEffect(() => {
+    if (!subLineId) {
+      if (categoryId) setCategoryId('')
+      if (subCategoryId) setSubCategoryId('')
+      if (taxonomyDraftLevel === 'category' || taxonomyDraftLevel === 'subCategory') closeTaxonomyDraft()
+      return
+    }
+
+    if (categoryId && !availableCategories.some((item) => item.id === categoryId)) {
+      setCategoryId('')
+      setSubCategoryId('')
+      if (taxonomyDraftLevel === 'category' || taxonomyDraftLevel === 'subCategory') closeTaxonomyDraft()
+    }
+  }, [subLineId, categoryId, subCategoryId, availableCategories, taxonomyDraftLevel])
+
+  useEffect(() => {
+    if (!categoryId) {
+      if (subCategoryId) setSubCategoryId('')
+      if (taxonomyDraftLevel === 'subCategory') closeTaxonomyDraft()
+      return
+    }
+
+    if (subCategoryId && !availableSubCategories.some((item) => item.id === subCategoryId)) {
+      setSubCategoryId('')
+      if (taxonomyDraftLevel === 'subCategory') closeTaxonomyDraft()
+    }
+  }, [categoryId, subCategoryId, availableSubCategories, taxonomyDraftLevel])
+
+  async function reloadTaxonomy(selectors?: { lineId?: string; subLineId?: string; categoryId?: string; subCategoryId?: string }) {
+    const rows = await getProductTaxonomyTree()
+    setTaxonomy(rows)
+    if (selectors?.lineId !== undefined) setLineId(selectors.lineId)
+    if (selectors?.subLineId !== undefined) setSubLineId(selectors.subLineId)
+    if (selectors?.categoryId !== undefined) setCategoryId(selectors.categoryId)
+    if (selectors?.subCategoryId !== undefined) setSubCategoryId(selectors.subCategoryId)
+  }
+
+  function openTaxonomyDraft(level: 'line' | 'subLine' | 'category' | 'subCategory') {
+    if (level === 'subLine' && !lineId) {
+      setLocalErr('Primero debes seleccionar una línea.')
+      return
+    }
+    if (level === 'category' && !subLineId) {
+      setLocalErr('Primero debes seleccionar una sub línea.')
+      return
+    }
+    if (level === 'subCategory' && !categoryId) {
+      setLocalErr('Primero debes seleccionar una categoría.')
+      return
+    }
+
+    setLocalErr(null)
+    setTaxonomyDraftLevel(level)
+    setTaxonomyDraftName('')
+  }
+
+  async function createTaxonomyLevel(level: 'line' | 'subLine' | 'category' | 'subCategory', name: string) {
+    const cleanName = name.trim()
+    if (!cleanName) {
+      setLocalErr(`Debes escribir un nombre para la ${taxonomyLevelLabel(level)}.`)
+      return
+    }
+
+    setLocalErr(null)
+    setTaxonomyBusy(true)
+    try {
+      if (level === 'line') {
+        const created = await createProductLine(cleanName)
+        await reloadTaxonomy({ lineId: created.id, subLineId: '', categoryId: '', subCategoryId: '' })
+      } else if (level === 'subLine') {
+        const created = await createProductSubLine(lineId, cleanName)
+        await reloadTaxonomy({ lineId, subLineId: created.id, categoryId: '', subCategoryId: '' })
+      } else if (level === 'category') {
+        const created = await createProductCategory(subLineId, cleanName)
+        await reloadTaxonomy({ lineId, subLineId, categoryId: created.id, subCategoryId: '' })
+      } else {
+        const created = await createProductSubCategory(categoryId, cleanName)
+        await reloadTaxonomy({ lineId, subLineId, categoryId, subCategoryId: created.id })
+      }
+      closeTaxonomyDraft()
+    } catch (e: any) {
+      setLocalErr(formatNestError(e))
+    } finally {
+      setTaxonomyBusy(false)
+    }
+  }
+
   function submit() {
     setLocalErr(null)
 
     if (!barcode.trim()) {
-      setLocalErr('Barcode es obligatorio.')
+      setLocalErr('El código de barras es obligatorio.')
+      return
+    }
+    if (!lineId || !subLineId || !categoryId || !subCategoryId) {
+      setLocalErr('Debes completar la jerarquía del producto: género, modelo/tipo de prenda, talla y color.')
       return
     }
     if (!cost.trim() || !priceRetail.trim() || !priceWholesale.trim()) {
@@ -1626,13 +1831,16 @@ function ProductModal({
       barcode: barcode.trim(),
       reference: reference.trim() || null,
       brand: brand.trim() || null,
+      lineId,
+      subLineId,
+      categoryId,
+      subCategoryId,
       brandCode: brandCode.trim() || null,
-      size: size.trim() || null,
-      color: color.trim() || null,
+      size: selectedCategory?.name?.trim() || null,
+      color: selectedSubCategory?.name?.trim() || null,
       containerNumber: containerNumber.trim() || null,
       billingNumber: billingNumber.trim() || null,
       description: description.trim() || null,
-      category: category.trim() || null,
       cost: cost.trim(),
       priceRetail: priceRetail.trim(),
       priceWholesale: priceWholesale.trim(),
@@ -1640,8 +1848,56 @@ function ProductModal({
     })
   }
 
+  function TaxonomySelectRow({
+    label,
+    value,
+    onChange,
+    disabled,
+    onCreate,
+    placeholder,
+    options
+  }: {
+    label: string
+    value: string
+    onChange: (value: string) => void
+    disabled?: boolean
+    onCreate: () => void
+    placeholder: string
+    options: Array<ProductLineNode | ProductSubLineNode | ProductCategoryNode | ProductSubCategoryNode>
+  }) {
+    return (
+      <div>
+        <label className="block text-sm font-medium mb-1">{label}</label>
+        <div className="flex gap-2">
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+            disabled={disabled}
+          >
+            <option value="">{placeholder}</option>
+            {options.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={disabled}
+            className="rounded-md border border-border bg-surface px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+          >
+            Nuevo
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <ModalShell title={isEdit ? `Editar producto: ${editing?.barcode}` : 'Crear producto'} onClose={onClose} busy={busy} maxWidth="max-w-5xl">
+    <ModalShell title={isEdit ? `Editar producto: ${editing?.barcode}` : 'Crear producto'} onClose={onClose} busy={busy || taxonomyBusy} maxWidth="max-w-6xl">
       {localErr ? (
         <div role="alert" className="rounded-md border border-danger/30 bg-danger/5 text-danger px-3 py-2 text-sm mb-3">
           {localErr}
@@ -1656,83 +1912,159 @@ function ProductModal({
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium mb-1">Barcode (único)</label>
-          <input ref={barcodeRef} value={barcode} onChange={(e) => setBarcode(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <label className="block text-sm font-medium mb-1">Código de barras (único)</label>
+          <input ref={barcodeRef} value={barcode} onChange={(e) => setBarcode(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Referencia</label>
-          <input value={reference} onChange={(e) => setReference(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <input value={reference} onChange={(e) => setReference(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Marca</label>
-          <input value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <input value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
+        </div>
+
+        <div className="md:col-span-2 rounded-lg border border-border bg-bg p-4">
+          <div className="text-sm font-semibold mb-1">Jerarquía del producto</div>
+          <div className="text-xs text-fg-muted mb-3">Línea = género, sub línea = modelo o tipo de prenda, categoría = talla y sub categoría = color.</div>
+
+          {taxonomyLoading ? (
+            <div className="text-sm text-fg-muted">Cargando jerarquías…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TaxonomySelectRow
+                label="Línea (Género)"
+                value={lineId}
+                onChange={(value) => setLineId(value)}
+                disabled={busy || taxonomyBusy}
+                onCreate={() => openTaxonomyDraft('line')}
+                placeholder="Selecciona un género"
+                options={taxonomy}
+              />
+
+              <TaxonomySelectRow
+                label="Sub línea (Modelo / tipo de prenda)"
+                value={subLineId}
+                onChange={(value) => setSubLineId(value)}
+                disabled={busy || taxonomyBusy || !lineId}
+                onCreate={() => openTaxonomyDraft('subLine')}
+                placeholder={lineId ? 'Selecciona un modelo o tipo de prenda' : 'Primero selecciona un género'}
+                options={availableSubLines}
+              />
+
+              <TaxonomySelectRow
+                label="Categoría (Talla)"
+                value={categoryId}
+                onChange={(value) => setCategoryId(value)}
+                disabled={busy || taxonomyBusy || !subLineId}
+                onCreate={() => openTaxonomyDraft('category')}
+                placeholder={subLineId ? 'Selecciona una talla' : 'Primero selecciona un modelo o tipo de prenda'}
+                options={availableCategories}
+              />
+
+              <TaxonomySelectRow
+                label="Sub categoría (Color)"
+                value={subCategoryId}
+                onChange={(value) => setSubCategoryId(value)}
+                disabled={busy || taxonomyBusy || !categoryId}
+                onCreate={() => openTaxonomyDraft('subCategory')}
+                placeholder={categoryId ? 'Selecciona un color' : 'Primero selecciona una talla'}
+                options={availableSubCategories}
+              />
+            </div>
+          )}
+
+          {taxonomyDraftLevel ? (
+            <div className="mt-4 rounded-md border border-border bg-surface p-3">
+              <div className="text-sm font-medium">{taxonomyLevelFieldLabel(taxonomyDraftLevel)}</div>
+              <div className="mt-1 text-xs text-fg-muted">{taxonomyLevelContext(taxonomyDraftLevel)}</div>
+              <div className="mt-3 flex flex-col gap-2 md:flex-row">
+                <input
+                  ref={taxonomyDraftRef}
+                  value={taxonomyDraftName}
+                  onChange={(e) => setTaxonomyDraftName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    void createTaxonomyLevel(taxonomyDraftLevel, taxonomyDraftName)
+                  }}
+                  placeholder={taxonomyLevelPlaceholder(taxonomyDraftLevel)}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-bg px-3 py-2 text-sm"
+                  disabled={busy || taxonomyBusy}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void createTaxonomyLevel(taxonomyDraftLevel, taxonomyDraftName)}
+                    disabled={busy || taxonomyBusy || !taxonomyDraftName.trim()}
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:brightness-95 disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeTaxonomyDraft}
+                    disabled={busy || taxonomyBusy}
+                    className="rounded-md border border-border bg-bg px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Código de marca (brandCode)</label>
-          <input value={brandCode} onChange={(e) => setBrandCode(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Talla (size)</label>
-          <input value={size} onChange={(e) => setSize(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Color</label>
-          <input value={color} onChange={(e) => setColor(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <label className="block text-sm font-medium mb-1">Código de marca</label>
+          <input value={brandCode} onChange={(e) => setBrandCode(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Número de contenedor</label>
-          <input value={containerNumber} onChange={(e) => setContainerNumber(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <input value={containerNumber} onChange={(e) => setContainerNumber(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Número de facturación</label>
-          <input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium mb-1">Descripción</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
+          <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Categoría</label>
-          <input value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Status</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'INACTIVE')} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy}>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="INACTIVE">INACTIVE</option>
+          <label className="block text-sm font-medium mb-1">Estado</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'INACTIVE')} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" disabled={busy || taxonomyBusy}>
+            <option value="ACTIVE">Activo</option>
+            <option value="INACTIVE">Inactivo</option>
           </select>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Costo</label>
-          <input value={cost} onChange={(e) => setCost(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 1.25" disabled={busy} />
+          <input value={cost} onChange={(e) => setCost(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 1.25" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Precio detal</label>
-          <input value={priceRetail} onChange={(e) => setPriceRetail(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 2.00" disabled={busy} />
+          <input value={priceRetail} onChange={(e) => setPriceRetail(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 2.00" disabled={busy || taxonomyBusy} />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Precio mayor</label>
-          <input value={priceWholesale} onChange={(e) => setPriceWholesale(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 1.70" disabled={busy} />
+          <input value={priceWholesale} onChange={(e) => setPriceWholesale(e.target.value)} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" placeholder="ej: 1.70" disabled={busy || taxonomyBusy} />
         </div>
 
         <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-md border border-border bg-surface px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={busy || taxonomyBusy} className="rounded-md border border-border bg-surface px-3 py-2 text-sm hover:bg-muted disabled:opacity-50">
             Cancelar
           </button>
-          <button type="submit" disabled={busy} className="rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:brightness-95 disabled:opacity-50">
+          <button type="submit" disabled={busy || taxonomyBusy || taxonomyLoading} className="rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:brightness-95 disabled:opacity-50">
             Guardar
           </button>
         </div>

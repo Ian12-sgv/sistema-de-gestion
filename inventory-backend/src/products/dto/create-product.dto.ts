@@ -12,14 +12,33 @@ export class CreateProductDto {
   @IsString()
   brand?: string;
 
-  // ✅ NUEVOS CAMPOS
   @IsOptional()
   @IsString()
-  brandCode?: string; // Código de marca
+  lineId?: string;
 
   @IsOptional()
   @IsString()
-  size?: string; // talla
+  subLineId?: string;
+
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  subCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  brandCode?: string;
+
+  @IsOptional()
+  @IsString()
+  size?: string;
 
   @IsOptional()
   @IsString()
@@ -27,19 +46,15 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  containerNumber?: string; // numero de contenedor
+  containerNumber?: string;
 
   @IsOptional()
   @IsString()
-  billingNumber?: string; // numero de facturacion
+  billingNumber?: string;
 
   @IsOptional()
   @IsString()
   description?: string;
-
-  @IsOptional()
-  @IsString()
-  category?: string;
 
   @IsNotEmpty()
   cost!: string;
@@ -50,7 +65,6 @@ export class CreateProductDto {
   @IsNotEmpty()
   priceWholesale!: string;
 
-  // ✅ Validación estricta
   @IsIn(['ACTIVE', 'INACTIVE'])
   status!: string;
 }

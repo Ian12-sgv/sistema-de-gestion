@@ -1,0 +1,59 @@
+Cambios realizados
+==================
+
+Se agregó jerarquía de productos en backend y frontend:
+- Línea
+- Sub línea
+- Categoría
+- Sub categoría
+
+Backend
+-------
+- Nuevas tablas Prisma:
+  - product_lines
+  - product_sub_lines
+  - product_categories
+  - product_sub_categories
+- El modelo Product ahora guarda:
+  - line_id
+  - sub_line_id
+  - product_category_id
+  - sub_category_id
+- Nuevos endpoints:
+  - GET  /product-taxonomy/tree
+  - POST /product-taxonomy/lines
+  - POST /product-taxonomy/sub-lines
+  - POST /product-taxonomy/categories
+  - POST /product-taxonomy/sub-categories
+
+Frontend
+--------
+- En Crear/Editar producto se añadieron selects dependientes para:
+  - Línea
+  - Sub línea
+  - Categoría
+  - Sub categoría
+- Se puede crear cada nivel directamente desde el modal del producto.
+- La tabla de productos ahora muestra la jerarquía completa.
+
+Pasos para aplicar en tu entorno
+--------------------------------
+1. Backend:
+   cd inventory-backend
+   npm install
+   npx prisma generate
+   npx prisma db push
+   npm run start:dev
+
+2. Frontend:
+   cd inventario-desktop
+   npm install
+   npm run dev
+
+Nota importante
+---------------
+Como el proyecto usa Prisma sin migraciones versionadas en este zip,
+se dejó preparado para aplicar los cambios con:
+
+  npx prisma db push
+

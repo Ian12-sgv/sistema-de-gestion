@@ -60,7 +60,7 @@ export type CreateBranchRequest = {
 export type UpdateBranchRequest = Partial<CreateBranchRequest>
 
 export type CreateWarehouseRequest = {
-  branchId?: string | null // ✅ ahora opcional
+  branchId?: string | null
   code: string
   name: string
   isActive?: boolean
@@ -173,7 +173,7 @@ export async function listWarehouses(branchId?: string | null, q?: string) {
 export async function createWarehouse(body: CreateWarehouseRequest) {
   const payload = {
     ...body,
-    branchId: body.branchId === undefined ? undefined : body.branchId // puede ser null
+    branchId: body.branchId === undefined ? undefined : body.branchId
   }
   const { data } = await http.post<Warehouse>('/warehouses', payload)
   return data
@@ -182,7 +182,7 @@ export async function createWarehouse(body: CreateWarehouseRequest) {
 export async function updateWarehouse(id: string, body: UpdateWarehouseRequest) {
   const payload = {
     ...body,
-    branchId: body.branchId === undefined ? undefined : body.branchId // puede ser null
+    branchId: body.branchId === undefined ? undefined : body.branchId
   }
   const { data } = await http.patch<Warehouse>(`/warehouses/${id}`, payload)
   return data
@@ -202,6 +202,16 @@ export type Product = {
   brand: string | null
   description: string | null
   category: string | null
+
+  lineId: string | null
+  subLineId: string | null
+  categoryId: string | null
+  subCategoryId: string | null
+
+  lineName: string | null
+  subLineName: string | null
+  categoryName: string | null
+  subCategoryName: string | null
 
   brandCode: string | null
   size: string | null
@@ -225,6 +235,11 @@ export type CreateProductRequest = {
   brand?: string | null
   description?: string | null
   category?: string | null
+
+  lineId?: string | null
+  subLineId?: string | null
+  categoryId?: string | null
+  subCategoryId?: string | null
 
   brandCode?: string | null
   size?: string | null
@@ -251,6 +266,29 @@ export type ProductAudit = {
   after: any
 }
 
+export type ProductSubCategoryNode = {
+  id: string
+  name: string
+}
+
+export type ProductCategoryNode = {
+  id: string
+  name: string
+  subCategories: ProductSubCategoryNode[]
+}
+
+export type ProductSubLineNode = {
+  id: string
+  name: string
+  categories: ProductCategoryNode[]
+}
+
+export type ProductLineNode = {
+  id: string
+  name: string
+  subLines: ProductSubLineNode[]
+}
+
 export async function listProducts() {
   const { data } = await http.get<Product[]>('/products')
   return data
@@ -273,5 +311,30 @@ export async function deactivateProduct(id: string) {
 
 export async function getProductAudit(productId: string) {
   const { data } = await http.get<ProductAudit[]>(`/products/${productId}/audit`)
+  return data
+}
+
+export async function getProductTaxonomyTree() {
+  const { data } = await http.get<ProductLineNode[]>('/product-taxonomy/tree')
+  return data
+}
+
+export async function createProductLine(name: string) {
+  const { data } = await http.post<ProductLineNode>('/product-taxonomy/lines', { name })
+  return data
+}
+
+export async function createProductSubLine(lineId: string, name: string) {
+  const { data } = await http.post<ProductSubLineNode>('/product-taxonomy/sub-lines', { lineId, name })
+  return data
+}
+
+export async function createProductCategory(subLineId: string, name: string) {
+  const { data } = await http.post<ProductCategoryNode>('/product-taxonomy/categories', { subLineId, name })
+  return data
+}
+
+export async function createProductSubCategory(categoryId: string, name: string) {
+  const { data } = await http.post<ProductSubCategoryNode>('/product-taxonomy/sub-categories', { categoryId, name })
   return data
 }

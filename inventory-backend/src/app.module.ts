@@ -10,6 +10,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
 import { ProductsModule } from './products/products.module'
 import { InventoryModule } from './inventory/inventory.module';
 import { StockModule } from './stock/stock.module';
+import { ProductTaxonomyModule } from './product-taxonomy/product-taxonomy.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { StockModule } from './stock/stock.module';
     BranchesModule,
     WarehousesModule,
     ProductsModule,
+    ProductTaxonomyModule,
     InventoryModule,
     StockModule,
   ],
