@@ -9,7 +9,7 @@ import net from 'node:net'
 const { app, dialog } = electron
 
 let backendProc: ChildProcessWithoutNullStreams | null = null
-let backendPort = 3000
+let backendPort = 3001
 
 let isQuitting = false
 app.on('before-quit', () => {
@@ -68,11 +68,11 @@ function ensureBackendEnvFile(): { envPath: string; env: Record<string, string> 
       '#',
       '# Ejemplo:',
       '# DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventario?schema=public"',
-      '# PORT="3000"',
+      '# PORT="3001"',
       '# JWT_SECRET="cambia_este_valor_por_uno_seguro"',
       '',
       'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/inventario?schema=public"',
-      'PORT="3000"',
+      'PORT="3001"',
       'JWT_SECRET=""',
       ''
     ].join('\n')
@@ -85,33 +85,52 @@ function ensureBackendEnvFile(): { envPath: string; env: Record<string, string> 
   ensureRequiredEnv(envPath, env)
 
   const portRaw = env.PORT?.trim()
-  const p = portRaw ? Number(portRaw) : 3000
-  backendPort = Number.isFinite(p) && p > 0 ? p : 3000
+  const preferredDefaultPort = 3001
+  const p = portRaw ? Number(portRaw) : preferredDefaultPort
+
+  // En desarrollo preferimos 3001 para alinearnos con el backend fuente
+  // y evitar hablar accidentalmente con un proceso viejo en 3000.
+  if (!app.isPackaged && (!portRaw || portRaw === '3000')) {
+    backendPort = preferredDefaultPort
+  } else {
+    backendPort = Number.isFinite(p) && p > 0 ? p : preferredDefaultPort
+  }
 
   return { envPath, env }
+}
+
+function resolveBackendEntry(backendRoot: string): string {
+  const candidates = [
+    path.join(backendRoot, 'dist', 'main.js'),
+    path.join(backendRoot, 'dist', 'src', 'main.js'),
+  ]
+
+  return candidates.find((entry) => fs.existsSync(entry)) ?? candidates[0]
 }
 
 function findBackendEntry(): { backendRoot: string; entry: string } {
   // En PROD: extraResources -> process.resourcesPath/backend
   if (app.isPackaged) {
     const backendRoot = path.join(process.resourcesPath, 'backend')
-    return { backendRoot, entry: path.join(backendRoot, 'dist', 'main.js') }
+    return { backendRoot, entry: resolveBackendEntry(backendRoot) }
   }
 
-  // En DEV: tu estructura ideal es inventario-desktop/backend
+  // En DEV preferimos el backend fuente del repo para no depender de una copia sincronizada.
   const candidates = [
+    path.resolve(app.getAppPath(), '..', 'inventory-backend'),
+    path.resolve(process.cwd(), '..', 'inventory-backend'),
     path.join(app.getAppPath(), 'backend'),
     path.join(process.cwd(), 'backend'),
     path.resolve(app.getAppPath(), '..', 'backend'),
   ]
 
   for (const backendRoot of candidates) {
-    const entry = path.join(backendRoot, 'dist', 'main.js')
+    const entry = resolveBackendEntry(backendRoot)
     if (fs.existsSync(entry)) return { backendRoot, entry }
   }
 
   const backendRoot = candidates[0]
-  return { backendRoot, entry: path.join(backendRoot, 'dist', 'main.js') }
+  return { backendRoot, entry: resolveBackendEntry(backendRoot) }
 }
 
 function waitForPort(host: string, port: number, timeoutMs: number): Promise<void> {
@@ -161,10 +180,10 @@ export async function startBackend(): Promise<void> {
         'No se encontró el backend compilado dentro de la app.\n\n' +
         `Se esperaba: ${entry}\n\n` +
         'Solución:\n' +
-        '1) Ejecuta en inventario-desktop:\n' +
-        '   - npm run sync:backend\n\n' +
-        '2) Verifica que exista:\n' +
-        '   - inventario-desktop/backend/dist/main.js\n'
+        '1) Si estás en desarrollo, compila inventory-backend:\n' +
+        '   - npm run build\n\n' +
+        '2) Si quieres usar la copia embebida, ejecuta en inventario-desktop:\n' +
+        '   - npm run sync:backend\n'
     })
     return
   }
