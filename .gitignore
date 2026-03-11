@@ -1,5 +1,7 @@
 **/node_modules/
+**/node_modules 2/
 **/dist/
+**/dist 2/
 **/dist-electron/
 **/release/
 
