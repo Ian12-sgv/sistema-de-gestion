@@ -1,12 +1,12 @@
 // electron/backend-runner.ts
 import * as electron from 'electron'
-const { app, dialog } = electron
-
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import net from 'node:net'
+
+const { app, dialog } = electron
 
 let backendProc: ChildProcessWithoutNullStreams | null = null
 let backendPort = 3000

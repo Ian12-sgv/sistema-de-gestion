@@ -7,6 +7,7 @@ import { getToken, setToken, clearToken } from './secure-store'
 import { startBackend, stopBackend, getBackendBaseUrl } from './backend-runner'
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog, protocol } = electron
+type MenuItemConstructorOptions = import('electron').MenuItemConstructorOptions
 
 // ✅ Nombre estable para que la carpeta de configuración sea clara para el usuario
 app.setName('Sistema de Gestion')
@@ -85,7 +86,7 @@ function buildMenu() {
   const configDir = path.join(app.getPath('userData'), 'config')
   const envPath = path.join(configDir, 'backend.env')
 
-  const template: electron.MenuItemConstructorOptions[] = [
+  const template: MenuItemConstructorOptions[] = [
     {
       label: 'Configuración',
       submenu: [

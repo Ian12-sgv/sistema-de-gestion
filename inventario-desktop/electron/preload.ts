@@ -1,4 +1,5 @@
 import * as electron from 'electron'
+
 const { contextBridge, ipcRenderer } = electron
 
 contextBridge.exposeInMainWorld('api', {
