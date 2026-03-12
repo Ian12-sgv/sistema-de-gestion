@@ -162,6 +162,44 @@ function waitForPort(host: string, port: number, timeoutMs: number): Promise<voi
   })
 }
 
+function isPortOpen(host: string, port: number, timeoutMs = 1200): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    let done = false
+
+    const finish = (open: boolean) => {
+      if (done) return
+      done = true
+      socket.destroy()
+      resolve(open)
+    }
+
+    socket.setTimeout(timeoutMs)
+    socket.once('connect', () => finish(true))
+    socket.once('timeout', () => finish(false))
+    socket.once('error', () => finish(false))
+    socket.connect(port, host)
+  })
+}
+
+async function isInventoryBackendListening(host: string, port: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 1800)
+  try {
+    const res = await fetch(`http://${host}:${port}/auth/me`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+    // Sin token, nuestro backend debe responder 401 o 403.
+    return res.status === 401 || res.status === 403
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function getBackendBaseUrl(): string {
   return `http://127.0.0.1:${backendPort}`
 }
@@ -194,6 +232,25 @@ export async function startBackend(): Promise<void> {
   const logStream = fs.createWriteStream(logPath, { flags: 'a' })
 
   const host = env.HOST ?? '127.0.0.1'
+
+  const busy = await isPortOpen(host, backendPort)
+  if (busy) {
+    const sameBackend = await isInventoryBackendListening(host, backendPort)
+    if (sameBackend) {
+      // Ya hay un backend de inventario levantado (por ejemplo, otra instancia).
+      return
+    }
+
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Puerto ocupado',
+      message:
+        `No se pudo iniciar el backend porque el puerto ${backendPort} ya esta en uso.\n\n` +
+        'Cierra el proceso que usa ese puerto o cambia PORT en backend.env.',
+    })
+    logStream.end()
+    return
+  }
 
   const childEnv = {
     ...process.env,
